@@ -31,6 +31,8 @@ describe("ITablelandController", function () {
     ).deploy()) as TablelandTables;
     await tables.deployed();
     await (await tables.initialize("https://foo.xyz/")).wait();
+    // The below tests rely on accounts[0] having relay privileges for `tables`
+    await tables.addRelayer(accounts[0].address);
 
     // Deploy test erc721 contracts
     foos = (await (

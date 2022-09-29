@@ -21,6 +21,7 @@ contract TestTablelandTablesUpgrade is
 {
     string internal _baseURIString;
     mapping(uint256 => address) internal _controllers;
+    mapping(address => bool) internal _relayers;
     mapping(uint256 => bool) internal _locks;
     uint256 internal constant QUERY_MAX_SIZE = 35000;
 
@@ -40,6 +41,30 @@ contract TestTablelandTablesUpgrade is
 
         _baseURIString = baseURI;
     }
+
+    function addRelayer(address relayer)
+        external
+        override
+        onlyOwner
+    {
+        if (_relayers[relayer]) {
+            revert Unauthorized();
+        }
+
+        _relayers[relayer] = true;
+     }
+
+    function removeRelayer(address relayer)
+        external
+        override
+        onlyOwner
+    {
+        if (!_relayers[relayer]) {
+            revert Unauthorized();
+        }
+
+        _relayers[relayer] = false;
+     }
 
     function createTable(address, string memory)
         external

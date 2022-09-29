@@ -18,6 +18,8 @@ describe("TablelandTables", function () {
     tables = (await Factory.deploy()) as TablelandTables;
     await tables.deployed();
     await (await tables.initialize("https://foo.xyz/")).wait();
+    // The below tests rely on accounts[0] having relay privileges
+    await tables.addRelayer(accounts[0].address);
   });
 
   it("Should not be initializable more than once", async function () {
@@ -128,6 +130,114 @@ describe("TablelandTables", function () {
     expect(runEvent.args!.tableId).to.equal(tableId);
     expect(runEvent.args!.statement).to.equal(runStatement);
     expect(runEvent.args!.policy).to.not.equal(undefined);
+  });
+
+  it("Should allow approved relayers to run SQL on behalf of table owner", async function () {
+    const contractOwner = accounts[0]; // deployed the contract
+    const owner = accounts[5];
+    const approvedAccount = accounts[6];
+
+    const createStatement = "create table testing_allowed (int a);";
+    const runStatement = "insert into table yadayada";
+
+    let tx = await tables
+      .connect(owner)
+      .createTable(owner.address, createStatement);
+    let receipt = await tx.wait();
+    const [, createEvent] = receipt.events ?? [];
+    const tableId = createEvent.args!.tableId;
+
+    tx = await tables
+      .connect(contractOwner)
+      .addRelayer(approvedAccount.address);
+    receipt = await tx.wait();
+
+    // Test approved can run SQL on behalf of owner
+    tx = await tables
+      .connect(approvedAccount)
+      .runSQL(owner.address, tableId, runStatement);
+    receipt = await tx.wait();
+    let [runEvent] = receipt.events ?? [];
+    expect(runEvent.args!.caller).to.equal(owner.address);
+    expect(runEvent.args!.isOwner).to.equal(true);
+    expect(runEvent.args!.tableId).to.equal(tableId);
+    expect(runEvent.args!.statement).to.equal(runStatement);
+    expect(runEvent.args!.policy).to.not.equal(undefined);
+  });
+
+  it("Should allow contract owner to remove a relayer", async function () {
+    const contractOwner = accounts[0]; // deployed the contract
+    const owner = accounts[5];
+    const approvedAccount = accounts[6];
+
+    const createStatement = "create table testing_allowed (int a);";
+    const runStatement = "insert into table yadayada";
+
+    let tx = await tables
+      .connect(owner)
+      .createTable(owner.address, createStatement);
+    let receipt = await tx.wait();
+    const [, createEvent] = receipt.events ?? [];
+    const tableId = createEvent.args!.tableId;
+
+    tx = await tables
+      .connect(contractOwner)
+      .addRelayer(approvedAccount.address);
+    receipt = await tx.wait();
+
+    // Test approved can run SQL on behalf of owner
+    tx = await tables
+      .connect(approvedAccount)
+      .runSQL(owner.address, tableId, runStatement);
+    receipt = await tx.wait();
+    let [runEvent] = receipt.events ?? [];
+    expect(runEvent.args!.caller).to.equal(owner.address);
+    expect(runEvent.args!.isOwner).to.equal(true);
+    expect(runEvent.args!.tableId).to.equal(tableId);
+    expect(runEvent.args!.statement).to.equal(runStatement);
+    expect(runEvent.args!.policy).to.not.equal(undefined);
+
+    tx = await tables
+      .connect(contractOwner)
+      .removeRelayer(approvedAccount.address);
+    receipt = await tx.wait();
+
+    await expect(
+      tables
+      .connect(approvedAccount)
+      .runSQL(owner.address, tableId, runStatement)
+    ).to.be.revertedWith(
+      "Unauthorized"
+    );
+  });
+
+  it("Should not allow removing a relayer that does not exist", async function () {
+    const contractOwner = accounts[0]; // deployed the contract
+
+    await expect(
+      tables
+      .connect(contractOwner)
+      .removeRelayer(accounts[7].address)
+    ).to.be.revertedWith(
+      "Unauthorized"
+    );
+  });
+
+  it("Should not allow adding a relayer that already exists", async function () {
+    const contractOwner = accounts[0]; // deployed the contract
+    const relayer = accounts[7].address;
+
+    await tables
+      .connect(contractOwner)
+      .addRelayer(relayer);
+
+    await expect(
+      tables
+      .connect(contractOwner)
+      .addRelayer(relayer)
+    ).to.be.revertedWith(
+      "Unauthorized"
+    );
   });
 
   it("Should emit transfer event when table transferred", async function () {

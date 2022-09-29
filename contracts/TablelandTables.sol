@@ -27,6 +27,9 @@ contract TablelandTables is
     string internal _baseURIString;
     // A mapping of table ids to table controller addresses.
     mapping(uint256 => address) internal _controllers;
+    // A mapping of addresses of relayers.
+    mapping(address => bool) internal _relayers;
+
     // A mapping of table controller addresses to lock status.
     mapping(uint256 => bool) internal _locks;
     // The maximum size allowed for a query.
@@ -46,6 +49,36 @@ contract TablelandTables is
 
         _baseURIString = baseURI;
     }
+
+    /**
+     * @dev Adds the address to the list of approved validators.
+     */
+    function addRelayer(address relayer)
+        external
+        override
+        onlyOwner
+    {
+        if (_relayers[relayer]) {
+            revert Unauthorized();
+        }
+
+        _relayers[relayer] = true;
+     }
+
+    /**
+     * @dev Adds the address to the list of approved validators.
+     */
+    function removeRelayer(address relayer)
+        external
+        override
+        onlyOwner
+    {
+        if (!_relayers[relayer]) {
+            revert Unauthorized();
+        }
+
+        _relayers[relayer] = false;
+     }
 
     /**
      * @dev See {ITablelandTables-createTable}.
@@ -75,7 +108,7 @@ contract TablelandTables is
     ) external payable override whenNotPaused nonReentrant {
         if (
             !_exists(tableId) ||
-            !(caller == _msgSenderERC721A() || owner() == _msgSenderERC721A())
+            !(caller == _msgSenderERC721A() || _relayers[_msgSenderERC721A()])
         ) {
             revert Unauthorized();
         }
@@ -148,7 +181,7 @@ contract TablelandTables is
         if (
             caller != ownerOf(tableId) ||
             !(caller == _msgSenderERC721A() ||
-                owner() == _msgSenderERC721A()) ||
+                _relayers[_msgSenderERC721A()]) ||
             _locks[tableId]
         ) {
             revert Unauthorized();
@@ -182,7 +215,7 @@ contract TablelandTables is
         if (
             caller != ownerOf(tableId) ||
             !(caller == _msgSenderERC721A() ||
-                owner() == _msgSenderERC721A()) ||
+                _relayers[_msgSenderERC721A()]) ||
             _locks[tableId]
         ) {
             revert Unauthorized();

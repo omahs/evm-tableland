@@ -64,6 +64,30 @@ interface ITablelandTables {
     event SetController(uint256 tableId, address controller);
 
     /**
+     * @dev Adds an address to the list of approved relayers
+     *
+     * Requirements:
+     *
+     * - `msg.sender` must be contract owner
+     * - contract must be unpaused
+     * - relayer must NOT already be a relayer
+     */
+    function addRelayer(address relayer)
+        external;
+
+    /**
+     * @dev Adds an address to the list of approved relayers
+     *
+     * Requirements:
+     *
+     * - `msg.sender` must be contract owner
+     * - contract must be unpaused
+     * - relayer must already be a relayer
+     */
+    function removeRelayer(address relayer)
+        external;
+
+    /**
      * @dev Creates a new table owned by `owner` using `statement` and returns its `tableId`.
      *
      * owner - the to-be owner of the new table
