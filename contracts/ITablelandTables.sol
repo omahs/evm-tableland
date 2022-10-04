@@ -100,6 +100,19 @@ interface ITablelandTables {
     ) external payable;
 
     /**
+     * TODO: write docstrings
+     */
+    function approveRelayer(address to, uint256 tableId) external;
+
+    function getRelayer(uint256 tableId) external returns (address);
+
+    function setRelayerForAll(address relayer, bool approved) external;
+
+    function isRelayerForAll(address owner, address relayer)
+        external
+        returns (bool);
+
+    /**
      * @dev Sets the controller for a table. Controller can be an EOA or contract address.
      *
      * When a table is created, it's controller is set to the zero address, which means that the

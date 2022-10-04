@@ -254,9 +254,22 @@ describe("ITablelandController", function () {
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
 
-    // Test contract owner can lock controller
+    // Test contract owner can NOT lock controller
     const contractOwner = accounts[0];
     const eoaController = accounts[6];
+
+    await expect(
+      tables
+        .connect(contractOwner)
+        .setController(owner.address, tableId, eoaController.address)
+    ).to.be.revertedWith("Unauthorized");
+
+    // Test relayer can set and lock controller
+    tx = await tables
+      .connect(owner)
+      .approveRelayer(contractOwner.address, tableId);
+    await tx.wait();
+
     tx = await tables
       .connect(contractOwner)
       .setController(owner.address, tableId, eoaController.address);

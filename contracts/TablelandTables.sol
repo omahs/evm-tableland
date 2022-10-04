@@ -25,6 +25,12 @@ contract TablelandTables is
 {
     // A URI used to reference off-chain table metadata.
     string internal _baseURIString;
+
+    // Mapping from table ID to approved address.
+    mapping(uint256 => address) internal _tableRelayApprovals;
+    // Mapping from owner to relayer approvals
+    mapping(address => mapping(address => bool)) internal _relayerApprovals;
+
     // A mapping of table ids to table controller addresses.
     mapping(uint256 => address) internal _controllers;
     // A mapping of table controller addresses to lock status.
@@ -73,10 +79,7 @@ contract TablelandTables is
         uint256 tableId,
         string memory statement
     ) external payable override whenNotPaused nonReentrant {
-        if (
-            !_exists(tableId) ||
-            !(caller == _msgSenderERC721A() || owner() == _msgSenderERC721A())
-        ) {
+        if (!_exists(tableId) || !(_isRelayerOrCaller(caller, tableId))) {
             revert Unauthorized();
         }
 
@@ -92,6 +95,101 @@ contract TablelandTables is
             statement,
             _getPolicy(caller, tableId)
         );
+    }
+
+    /**
+     * @dev Gives permission to `to` to call runSQL and setController for `tableId` token
+     * TODO: The approval is cleared when the table is transferred.
+     *
+     * Only a single account per table can be approved at a time, so approving the
+     * zero address clears previous approvals.
+     *
+     * Requirements:
+     *
+     * - The caller must own the table.
+     * - `tableId` must exist.
+     *
+     * TODO: Emits an {RelayApproval} event.
+     */
+    function approveRelayer(address to, uint256 tableId)
+        public
+        override
+        whenNotPaused
+    {
+        address owner = ownerOf(tableId);
+
+        if (_msgSenderERC721A() != owner) {
+            revert Unauthorized();
+        }
+
+        _tableRelayApprovals[tableId] = to;
+        //TODO: emit RelayApproval(owner, to, tableId);
+    }
+
+    /**
+     * @dev Returns the account approved to relay for `tableId` table.
+     *
+     * Requirements:
+     *
+     * - `tableId` must exist.
+     */
+    function getRelayer(uint256 tableId)
+        public
+        view
+        override
+        returns (address)
+    {
+        if (!_exists(tableId)) revert Unauthorized();
+
+        return _tableRelayApprovals[tableId];
+    }
+
+    /**
+     * @dev Approve or remove `relayer` as a relayer for the caller.
+     * Relayers can call {runSQL} or {setController}
+     * with the access rights of the table owner.
+     *
+     * Requirements:
+     *
+     * - The `relayer` cannot be the caller.
+     *
+     * TODO: Emits an {ApprovalForAll} event.
+     */
+    function setRelayerForAll(address relayer, bool approved)
+        public
+        override
+        whenNotPaused
+    {
+        if (relayer == _msgSenderERC721A()) revert Unauthorized();
+
+        _relayerApprovals[_msgSenderERC721A()][relayer] = approved;
+        // TODO: emit ApprovalForAll(_msgSenderERC721A(), relayer, approved);
+    }
+
+    /**
+     * @dev Returns if the `relayer` has access rights over all of `owner`'s tables.
+     *
+     * See {setRelayerForAll}.
+     */
+    function isRelayerForAll(address owner, address relayer)
+        public
+        view
+        override
+        returns (bool)
+    {
+        return _relayerApprovals[owner][relayer];
+    }
+
+    function _isRelayerOrCaller(address caller, uint256 tableId)
+        private
+        view
+        returns (bool result)
+    {
+        if (caller == _msgSenderERC721A()) return true;
+        if (_relayerApprovals[caller][_msgSenderERC721A()]) return true;
+        if (_tableRelayApprovals[tableId] == _msgSenderERC721A()) return true;
+
+        return false;
     }
 
     /**
@@ -147,8 +245,7 @@ contract TablelandTables is
     ) external override whenNotPaused {
         if (
             caller != ownerOf(tableId) ||
-            !(caller == _msgSenderERC721A() ||
-                owner() == _msgSenderERC721A()) ||
+            !(_isRelayerOrCaller(caller, tableId)) ||
             _locks[tableId]
         ) {
             revert Unauthorized();
@@ -181,8 +278,7 @@ contract TablelandTables is
     {
         if (
             caller != ownerOf(tableId) ||
-            !(caller == _msgSenderERC721A() ||
-                owner() == _msgSenderERC721A()) ||
+            !(_isRelayerOrCaller(caller, tableId)) ||
             _locks[tableId]
         ) {
             revert Unauthorized();
@@ -237,6 +333,7 @@ contract TablelandTables is
     ) internal override {
         super._afterTokenTransfers(from, to, startTokenId, quantity);
         if (from != address(0)) {
+            _tableRelayApprovals[startTokenId] = address(0);
             // quantity is only > 1 after bulk minting when from == address(0)
             emit TransferTable(from, to, startTokenId);
         }

@@ -20,6 +20,8 @@ contract TestTablelandTablesUpgrade is
     UUPSUpgradeable
 {
     string internal _baseURIString;
+    mapping(uint256 => address) internal _tableRelayApprovals;
+    mapping(address => mapping(address => bool)) internal _relayerApprovals;
     mapping(uint256 => address) internal _controllers;
     mapping(uint256 => bool) internal _locks;
     uint256 internal constant QUERY_MAX_SIZE = 35000;
@@ -68,6 +70,101 @@ contract TestTablelandTablesUpgrade is
             statement,
             _getPolicy(caller, tableId)
         );
+    }
+
+    /**
+     * @dev Gives permission to `to` to call runSQL and setController for `tableId` token
+     * TODO: The approval is cleared when the table is transferred.
+     *
+     * Only a single account per table can be approved at a time, so approving the
+     * zero address clears previous approvals.
+     *
+     * Requirements:
+     *
+     * - The caller must own the table.
+     * - `tableId` must exist.
+     *
+     * TODO: Emits an {RelayApproval} event.
+     */
+    function approveRelayer(address to, uint256 tableId)
+        public
+        override
+        whenNotPaused
+    {
+        address owner = ownerOf(tableId);
+
+        if (_msgSenderERC721A() != owner) {
+            revert Unauthorized();
+        }
+
+        _tableRelayApprovals[tableId] = to;
+        //TODO: emit RelayApproval(owner, to, tableId);
+    }
+
+    /**
+     * @dev Returns the account approved to relay for `tableId` table.
+     *
+     * Requirements:
+     *
+     * - `tableId` must exist.
+     */
+    function getRelayer(uint256 tableId)
+        public
+        view
+        override
+        returns (address)
+    {
+        if (!_exists(tableId)) revert Unauthorized();
+
+        return _tableRelayApprovals[tableId];
+    }
+
+    /**
+     * @dev Approve or remove `relayer` as a relayer for the caller.
+     * Relayers can call {runSQL} or {setController}
+     * with the access rights of the table owner.
+     *
+     * Requirements:
+     *
+     * - The `relayer` cannot be the caller.
+     *
+     * TODO: Emits an {ApprovalForAll} event.
+     */
+    function setRelayerForAll(address relayer, bool approved)
+        public
+        override
+        whenNotPaused
+    {
+        if (relayer == _msgSenderERC721A()) revert Unauthorized();
+
+        _relayerApprovals[_msgSenderERC721A()][relayer] = approved;
+        // TODO: emit ApprovalForAll(_msgSenderERC721A(), relayer, approved);
+    }
+
+    /**
+     * @dev Returns if the `relayer` has access rights over all of `owner`'s tables.
+     *
+     * See {setRelayerForAll}.
+     */
+    function isRelayerForAll(address owner, address relayer)
+        public
+        view
+        override
+        returns (bool)
+    {
+        return _relayerApprovals[owner][relayer];
+    }
+
+    function _isRelayerOrCaller(address caller, uint256 tableId)
+        private
+        view
+        returns (bool result)
+    {
+        if (caller == _msgSenderERC721A()) return true;
+        if (_relayerApprovals[caller][_msgSenderERC721A()]) return true;
+        if (_tableRelayApprovals[tableId] == _msgSenderERC721A()) return true;
+
+        return false;
     }
 
     function _getPolicy(address caller, uint256 tableId)

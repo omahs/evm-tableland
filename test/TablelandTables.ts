@@ -68,7 +68,11 @@ describe("TablelandTables", function () {
 
   it("Should be able to run SQL", async function () {
     // Test run SQL fails if table does not exist
+    const contractOwner = accounts[0];
     const owner = accounts[4];
+    const nonOwner = accounts[5];
+    const caller = accounts[6];
+
     const runStatement = "insert into testing values (0);";
     await expect(
       tables
@@ -97,7 +101,6 @@ describe("TablelandTables", function () {
     expect(runEvent.args!.policy).to.not.equal(undefined);
 
     // Test others can run SQL on table
-    const nonOwner = accounts[5];
     tx = await tables
       .connect(nonOwner)
       .runSQL(nonOwner.address, tableId, runStatement);
@@ -110,14 +113,22 @@ describe("TablelandTables", function () {
     expect(runEvent.args!.policy).to.not.equal(undefined);
 
     // Test others cannot run SQL on behalf of another account
-    const sender = accounts[5];
-    const caller = accounts[6];
     await expect(
-      tables.connect(sender).runSQL(caller.address, tableId, runStatement)
+      tables.connect(nonOwner).runSQL(caller.address, tableId, runStatement)
     ).to.be.revertedWith("Unauthorized");
 
-    // Test contract owner can run SQL on behalf of another account
-    const contractOwner = accounts[0];
+    // Test contract owner can NOT run SQL on behalf of another account
+    await expect(
+      tables
+        .connect(contractOwner)
+        .runSQL(caller.address, tableId, runStatement)
+    ).to.be.revertedWith("Unauthorized");
+
+    tx = await tables
+      .connect(owner)
+      .approveRelayer(contractOwner.address, tableId);
+    await tx.wait();
+
     tx = await tables
       .connect(contractOwner)
       .runSQL(caller.address, tableId, runStatement);
@@ -270,5 +281,63 @@ describe("TablelandTables", function () {
 
     expect(tableId instanceof BigNumber).to.equal(true);
     expect(tableId.toNumber()).to.equal(1);
+  });
+
+  it("Should allow approving a relayer for all owned tables", async function () {
+    const owner = accounts[4];
+    const relayer = accounts[5];
+    const createStatement = "create table testing (int a);";
+    const runStatement = "insert into foo";
+
+    let tx = await tables
+      .connect(owner)
+      .createTable(owner.address, createStatement);
+    const receipt = await tx.wait();
+    const [, createEvent] = receipt.events ?? [];
+    const tableId = createEvent.args!.tableId;
+
+    await expect(
+      tables.connect(relayer).runSQL(owner.address, tableId, runStatement)
+    ).to.be.revertedWith("Unauthorized");
+
+    tx = await tables.connect(owner).setRelayerForAll(relayer.address, true);
+    await tx.wait();
+
+    // Test relayer can set and lock controller
+    tx = await tables
+      .connect(relayer)
+      .runSQL(owner.address, tableId, runStatement);
+    await tx.wait();
+  });
+
+  it("Should reset relayer when table is transfered", async function () {
+    const owner = accounts[4];
+    const relayer = accounts[5];
+    const newOwner = accounts[6];
+
+    const createStatement = "create table testing (int a);";
+
+    let tx = await tables
+      .connect(owner)
+      .createTable(owner.address, createStatement);
+    const receipt = await tx.wait();
+    const [, createEvent] = receipt.events ?? [];
+    const tableId = createEvent.args!.tableId;
+
+    tx = await tables.connect(owner).approveRelayer(relayer.address, tableId);
+    await tx.wait();
+
+    let relayerAddress = await tables.connect(owner).getRelayer(tableId);
+    expect(relayerAddress).to.equal(relayer.address);
+
+    tx = await tables
+      .connect(owner)
+      .transferFrom(owner.address, newOwner.address, tableId);
+    await tx.wait();
+
+    relayerAddress = await tables.connect(owner).getRelayer(tableId);
+    expect(relayerAddress).to.equal(
+      "0x0000000000000000000000000000000000000000"
+    );
   });
 });
