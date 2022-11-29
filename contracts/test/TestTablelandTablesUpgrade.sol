@@ -65,6 +65,11 @@ contract TestTablelandTablesUpgrade is
         );
     }
 
+    function runSQLs(
+        address caller,
+        ITablelandTables.Runnable[] calldata runnables
+    ) external payable override whenNotPaused nonReentrant {} // solhint-disable no-empty-blocks
+
     function _getPolicy(
         address caller,
         uint256 tableId

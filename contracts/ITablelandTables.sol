@@ -18,6 +18,14 @@ interface ITablelandTables {
     error MaxQuerySizeExceeded(uint256 querySize, uint256 maxQuerySize);
 
     /**
+     * RunSQL was called with a query length greater than maximum allowed.
+     */
+    error MaxStatementCountExceeded(
+        uint256 statementCount,
+        uint256 maxStatementCount
+    );
+
+    /**
      * @dev Emitted when `owner` creates a new table.
      *
      * owner - the to-be owner of the table
@@ -64,6 +72,14 @@ interface ITablelandTables {
     event SetController(uint256 tableId, address controller);
 
     /**
+     * @dev Struct containing parameters needed to run a sql statement: tableId and statement.
+     */
+    struct Runnable {
+        uint256 tableId;
+        string statement;
+    }
+
+    /**
      * @dev Creates a new table owned by `owner` using `statement` and returns its `tableId`.
      *
      * owner - the to-be owner of the new table
@@ -96,7 +112,27 @@ interface ITablelandTables {
     function runSQL(
         address caller,
         uint256 tableId,
-        string memory statement
+        string calldata statement
+    ) external payable;
+
+    /**
+     * @dev Runs a set SQL statements for `caller` using the `runnables`.
+     *
+     * caller - the address that is running the SQL statement
+     * tableId - the id of the target table
+     * statement - the SQL statement to run
+     *
+     * Requirements:
+     *
+     * - contract must be unpaused
+     * - `msg.sender` must be `caller` or contract owner
+     * - `tableId` must exist
+     * - `caller` must be authorized by the table controller
+     * - `statement` must be less than or equal to 35000 bytes
+     */
+    function runSQLs(
+        address caller,
+        ITablelandTables.Runnable[] calldata runnables
     ) external payable;
 
     /**
