@@ -7,6 +7,7 @@ import { LocalTableland, getAccounts } from "@tableland/local";
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
+
 const lt = new LocalTableland({
   silent: true,
   registryDir: "../evm-tableland",
