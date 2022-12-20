@@ -5,8 +5,9 @@ import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
 import {
   TablelandTables,
+  TestReentrancyRunSQLLegacy,
+  TestReentrancyWriteToTable,
   TestReentrancyRunSQL,
-  TestReentrancyBulkRunSQL,
 } from "../../typechain-types";
 
 chai.use(chaiAsPromised);
@@ -15,8 +16,9 @@ const expect = chai.expect;
 describe("TablelandTables", function () {
   let accounts: SignerWithAddress[];
   let tables: TablelandTables;
-  let runSqlReentrantController: TestReentrancyRunSQL;
-  let bulkSqlReentrantController: TestReentrancyBulkRunSQL;
+  let runSqlLegacyReentrantController: TestReentrancyRunSQLLegacy;
+  let writeToTableReentrantController: TestReentrancyWriteToTable;
+  let sqlReentrantController: TestReentrancyRunSQL;
 
   beforeEach(async function () {
     accounts = await ethers.getSigners();
@@ -26,15 +28,20 @@ describe("TablelandTables", function () {
     await (await tables.initialize("https://foo.xyz/")).wait();
 
     // Deploy test controller contracts
-    runSqlReentrantController = (await (
+    runSqlLegacyReentrantController = (await (
+      await ethers.getContractFactory("TestReentrancyRunSQLLegacy")
+    ).deploy(tables.address)) as TestReentrancyRunSQLLegacy;
+    await runSqlLegacyReentrantController.deployed();
+
+    writeToTableReentrantController = (await (
+      await ethers.getContractFactory("TestReentrancyWriteToTable")
+    ).deploy(tables.address)) as TestReentrancyWriteToTable;
+    await writeToTableReentrantController.deployed();
+
+    sqlReentrantController = (await (
       await ethers.getContractFactory("TestReentrancyRunSQL")
     ).deploy(tables.address)) as TestReentrancyRunSQL;
-    await runSqlReentrantController.deployed();
-
-    bulkSqlReentrantController = (await (
-      await ethers.getContractFactory("TestReentrancyBulkRunSQL")
-    ).deploy(tables.address)) as TestReentrancyBulkRunSQL;
-    await bulkSqlReentrantController.deployed();
+    await sqlReentrantController.deployed();
   });
 
   it("Should not be initializable more than once", async function () {
@@ -147,7 +154,7 @@ describe("TablelandTables", function () {
     expect(runEvent.args!.policy).to.not.equal(undefined);
   });
 
-  it("Should not enable reentracy attack via runSQL with policy", async function () {
+  it("Should not enable reentracy attack via legacy runSQL with policy", async function () {
     const owner = accounts[4];
 
     const createStatement = "create table testing (int a);";
@@ -162,7 +169,40 @@ describe("TablelandTables", function () {
 
     tx = await tables
       .connect(owner)
-      .setController(owner.address, tableId, runSqlReentrantController.address);
+      .setController(
+        owner.address,
+        tableId,
+        runSqlLegacyReentrantController.address
+      );
+    await tx.wait();
+
+    await expect(
+      tables
+        .connect(owner)
+        ["runSQL(address,uint256,string)"](owner.address, tableId, runStatement)
+    ).to.be.revertedWith("ReentrancyGuard: reentrant call");
+  });
+
+  it("Should not enable reentracy attack via writeToTable with policy", async function () {
+    const owner = accounts[4];
+
+    const createStatement = "create table testing (int a);";
+    const runStatement = "insert into testing values (1);";
+
+    let tx = await tables
+      .connect(owner)
+      .createTable(owner.address, createStatement);
+    const receipt = await tx.wait();
+    const [, createEvent] = receipt.events ?? [];
+    const tableId = createEvent.args!.tableId;
+
+    tx = await tables
+      .connect(owner)
+      .setController(
+        owner.address,
+        tableId,
+        writeToTableReentrantController.address
+      );
     await tx.wait();
 
     await expect(
@@ -209,7 +249,7 @@ describe("TablelandTables", function () {
     expect(runEvent2.args!.policy).to.not.equal(undefined);
   });
 
-  it("Should not enable reentracy attack via bulk runSQL with policy", async function () {
+  it("Should not enable reentracy attack via runSQL with policy", async function () {
     const owner = accounts[4];
 
     const createStatement = "create table testing (int a);";
@@ -225,11 +265,7 @@ describe("TablelandTables", function () {
 
     tx = await tables
       .connect(owner)
-      .setController(
-        owner.address,
-        tableId,
-        bulkSqlReentrantController.address
-      );
+      .setController(owner.address, tableId, sqlReentrantController.address);
     await tx.wait();
 
     await expect(
@@ -291,7 +327,7 @@ describe("TablelandTables", function () {
     expect(runEvent2.args!.policy).to.not.equal(undefined);
   });
 
-  it("Should NOT enable reentracy attack via bulkSQL with policy", async function () {
+  it("Should NOT enable reentracy attack via `runSQL` with policy", async function () {
     const owner = accounts[4];
 
     const createStatement = "create table testing (int a);";
@@ -307,11 +343,7 @@ describe("TablelandTables", function () {
 
     tx = await tables
       .connect(owner)
-      .setController(
-        owner.address,
-        tableId,
-        bulkSqlReentrantController.address
-      );
+      .setController(owner.address, tableId, sqlReentrantController.address);
     await tx.wait();
 
     await expect(
@@ -323,7 +355,7 @@ describe("TablelandTables", function () {
         ])
     ).to.be.revertedWith("ReentrancyGuard: reentrant call");
   });
-  it("Should NOT be able to run bulkSQL with table that doesn't exist", async function () {
+  it("Should NOT be able to call `runSQL` with table that doesn't exist", async function () {
     // Test run SQL fails if table does not exist
     const owner = accounts[4];
     const runStatement1 = "insert into testing values (1);";
@@ -338,7 +370,7 @@ describe("TablelandTables", function () {
     ).to.be.revertedWithCustomError(tables, "Unauthorized");
   });
 
-  it("Should be able to run bulkSQL with table you do not own", async function () {
+  it("Should be able to call `runSQL` with table you do not own", async function () {
     // Test others can run SQLs on table
     const nonOwner = accounts[5];
     const owner = accounts[4];
@@ -389,7 +421,7 @@ describe("TablelandTables", function () {
     expect(createEvent1.args!.owner).to.equal(nonOwner.address);
   });
 
-  it("Should NOT be able to run bulk runSQL on behalf of someone else", async function () {
+  it("Should NOT be able to call `runSQL` on behalf of someone else", async function () {
     // Test others cannot run SQL on behalf of another account
     const sender = accounts[5];
     const caller = accounts[6];
@@ -416,7 +448,7 @@ describe("TablelandTables", function () {
     ).to.be.revertedWithCustomError(tables, "Unauthorized");
   });
 
-  it("Should allow contract owner to run bulk runSQL on behalf of someone else", async function () {
+  it("Should allow contract owner to call `runSQL` on behalf of someone else", async function () {
     // Test contract owner can run SQL on behalf of another account
     const contractOwner = accounts[0];
     const tableOwner = accounts[4];
@@ -467,7 +499,7 @@ describe("TablelandTables", function () {
     expect(createEvent1.args!.owner).to.equal(caller.address);
   });
 
-  it("Should NOT allow bulk runSQL to run when paused", async function () {
+  it("Should NOT allow calling `runSQL` when contract is paused", async function () {
     // Test others cannot run SQL on behalf of another account
     const owner = accounts[4];
     const contractOwner = accounts[0];
@@ -496,6 +528,37 @@ describe("TablelandTables", function () {
           { tableId, statement: runStatement2 },
           { tableId: BigNumber.from(0), statement: createStatement },
         ])
+    ).to.be.revertedWith("Pausable: paused");
+  });
+
+  it("Should NOT allow calling legacy `runSQL` when contract is paused", async function () {
+    // Test others cannot run SQL on behalf of another account
+    const owner = accounts[4];
+    const contractOwner = accounts[0];
+
+    const createStatement = "create table testing (int a);";
+    const runStatement1 = "insert into testing values (1);";
+
+    let tx = await tables
+      .connect(owner)
+      .createTable(owner.address, createStatement);
+    const receipt = await tx.wait();
+    const [, createEvent] = receipt.events ?? [];
+    const tableId = createEvent.args!.tableId;
+
+    // Pause with contract owner
+    tx = await tables.connect(contractOwner).pause();
+    await tx.wait();
+
+    // Test creating tables is paused
+    await expect(
+      tables
+        .connect(owner)
+        ["runSQL(address,uint256,string)"](
+          owner.address,
+          tableId,
+          runStatement1
+        )
     ).to.be.revertedWith("Pausable: paused");
   });
 
