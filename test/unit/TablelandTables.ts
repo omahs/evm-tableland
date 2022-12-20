@@ -54,7 +54,7 @@ describe("TablelandTables", function () {
     const createStatement = "create table testing (int a);";
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     let [mintEvent, createEvent] = receipt.events ?? [];
     expect(mintEvent.args!.tokenId).to.equal(BigNumber.from(1));
@@ -70,7 +70,7 @@ describe("TablelandTables", function () {
     const sender = accounts[5];
     tx = await tables
       .connect(sender)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     receipt = await tx.wait();
     [mintEvent, createEvent] = receipt.events ?? [];
     expect(mintEvent.args!.tokenId).to.equal(BigNumber.from(2));
@@ -90,17 +90,13 @@ describe("TablelandTables", function () {
     await expect(
       tables
         .connect(owner)
-        ["runSQL(address,uint256,string)"](
-          owner.address,
-          BigNumber.from(1),
-          runStatement
-        )
+        .writeToTable(owner.address, BigNumber.from(1), runStatement)
     ).to.be.revertedWithCustomError(tables, "Unauthorized");
 
     const createStatement = "create table testing (int a);";
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -108,7 +104,7 @@ describe("TablelandTables", function () {
     // Test owner can run SQL on table
     tx = await tables
       .connect(owner)
-      ["runSQL(address,uint256,string)"](owner.address, tableId, runStatement);
+      .writeToTable(owner.address, tableId, runStatement);
     receipt = await tx.wait();
     let [runEvent] = receipt.events ?? [];
     expect(runEvent.args!.caller).to.equal(owner.address);
@@ -121,11 +117,7 @@ describe("TablelandTables", function () {
     const nonOwner = accounts[5];
     tx = await tables
       .connect(nonOwner)
-      ["runSQL(address,uint256,string)"](
-        nonOwner.address,
-        tableId,
-        runStatement
-      );
+      .writeToTable(nonOwner.address, tableId, runStatement);
     receipt = await tx.wait();
     [runEvent] = receipt.events ?? [];
     expect(runEvent.args!.caller).to.equal(nonOwner.address);
@@ -138,20 +130,14 @@ describe("TablelandTables", function () {
     const sender = accounts[5];
     const caller = accounts[6];
     await expect(
-      tables
-        .connect(sender)
-        ["runSQL(address,uint256,string)"](
-          caller.address,
-          tableId,
-          runStatement
-        )
+      tables.connect(sender).writeToTable(caller.address, tableId, runStatement)
     ).to.be.revertedWithCustomError(tables, "Unauthorized");
 
     // Test contract owner can run SQL on behalf of another account
     const contractOwner = accounts[0];
     tx = await tables
       .connect(contractOwner)
-      ["runSQL(address,uint256,string)"](caller.address, tableId, runStatement);
+      .writeToTable(caller.address, tableId, runStatement);
     receipt = await tx.wait();
     [runEvent] = receipt.events ?? [];
     expect(runEvent.args!.caller).to.equal(caller.address);
@@ -169,7 +155,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     const receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -180,9 +166,7 @@ describe("TablelandTables", function () {
     await tx.wait();
 
     await expect(
-      tables
-        .connect(owner)
-        ["runSQL(address,uint256,string)"](owner.address, tableId, runStatement)
+      tables.connect(owner).writeToTable(owner.address, tableId, runStatement)
     ).to.be.revertedWith("ReentrancyGuard: reentrant call");
   });
 
@@ -195,7 +179,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -234,7 +218,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     const receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -268,7 +252,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -316,7 +300,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     const receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -365,7 +349,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -417,7 +401,7 @@ describe("TablelandTables", function () {
 
     const tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     const receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -444,7 +428,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(tableOwner)
-      ["runSQL(address,string)"](tableOwner.address, createStatement);
+      .createTable(tableOwner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -492,7 +476,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -542,7 +526,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     const receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -589,7 +573,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -628,7 +612,7 @@ describe("TablelandTables", function () {
 
     const tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     const receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -655,7 +639,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(tableOwner)
-      ["runSQL(address,string)"](tableOwner.address, createStatement);
+      .createTable(tableOwner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -691,7 +675,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -734,7 +718,7 @@ describe("TablelandTables", function () {
 
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     const receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -759,7 +743,7 @@ describe("TablelandTables", function () {
     const createStatement = "create table testing (int a);";
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     let receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -797,10 +781,7 @@ describe("TablelandTables", function () {
 
     tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](
-        owner.address,
-        "create table testing (int a);"
-      );
+      .createTable(owner.address, "create table testing (int a);");
     await tx.wait();
     const tokenURI = await tables.tokenURI(1);
     expect(tokenURI).includes("https://fake.com/");
@@ -811,7 +792,7 @@ describe("TablelandTables", function () {
     const createStatement = "create table testing (int a);";
     let tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     await tx.wait();
 
     // Test only contract owner can pause
@@ -826,16 +807,14 @@ describe("TablelandTables", function () {
 
     // Test creating tables is paused
     await expect(
-      tables
-        .connect(owner)
-        ["runSQL(address,string)"](owner.address, createStatement)
+      tables.connect(owner).createTable(owner.address, createStatement)
     ).to.be.revertedWith("Pausable: paused");
 
     // Test running SQL is paused
     await expect(
       tables
         .connect(owner)
-        ["runSQL(address,uint256,string)"](
+        .writeToTable(
           owner.address,
           BigNumber.from(1),
           "insert into testing values (0);"
@@ -866,7 +845,7 @@ describe("TablelandTables", function () {
     // Test creating tables is unpaused
     tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     await tx.wait();
   });
 
@@ -875,7 +854,7 @@ describe("TablelandTables", function () {
     const createStatement = "create table testing (int a);";
     const tx = await tables
       .connect(owner)
-      ["runSQL(address,string)"](owner.address, createStatement);
+      .createTable(owner.address, createStatement);
     const receipt = await tx.wait();
     const [, createEvent] = receipt.events ?? [];
     const tableId = createEvent.args!.tableId;
@@ -884,9 +863,7 @@ describe("TablelandTables", function () {
     const runStatement = Array(35001).fill("a").join("");
 
     await expect(
-      tables
-        .connect(owner)
-        ["runSQL(address,uint256,string)"](owner.address, tableId, runStatement)
+      tables.connect(owner).writeToTable(owner.address, tableId, runStatement)
     ).to.be.revertedWithCustomError(tables, "MaxQuerySizeExceeded");
   });
 
